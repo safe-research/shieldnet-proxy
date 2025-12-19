@@ -1,4 +1,4 @@
-import type { Address, Hex, Signature } from "viem";
+import type { Address, Hex } from "viem";
 
 export type MetaTransaction = {
 	/** The recipient address of the transaction. */

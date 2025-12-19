@@ -1,4 +1,4 @@
-import { getAddress, type Hex, isHex, parseSignature } from "viem";
+import { getAddress, type Hex, isHex } from "viem";
 import z from "zod";
 
 export const checkedAddressSchema = z.string().transform((arg) => getAddress(arg));

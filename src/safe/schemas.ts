@@ -23,3 +23,5 @@ export const transactionProposedEventSchema = safeEventSchema.extend({
 	type: z.literal("PENDING_MULTISIG_TRANSACTION"),
 	safeTxHash: hexDataSchema,
 });
+
+export type TransactionProposedEvent = z.output<typeof transactionProposedEventSchema>;

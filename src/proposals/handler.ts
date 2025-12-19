@@ -3,7 +3,8 @@ import { createWalletClient, extractChain, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
-import { transactionProposedEventSchema } from "../safe/schemas.js";
+import type { Config } from "../config/types.js";
+import { type TransactionProposedEvent, transactionProposedEventSchema } from "../safe/schemas.js";
 import { transactionDetails } from "../safe/service.js";
 import { handleError } from "../utils/errors.js";
 
@@ -11,16 +12,28 @@ export const handleProposal = async (c: Context, sampled = false) => {
 	try {
 		const config = configSchema.parse(c.env);
 		if (sampled && config.SAMPLE_RATE >= Math.random() * 100) {
-			return c.body(null, 201);
-		}
-		const request = transactionProposedEventSchema.safeParse(await c.req.json());
-		if (!request.success) {
-			return c.body(null, 201);
+			return c.body(null, 202);
 		}
 
-		const details = await transactionDetails(request.data.chainId, request.data.safeTxHash);
+		const request = transactionProposedEventSchema.safeParse(await c.req.json());
+		if (!request.success) {
+			return c.body(null, 202);
+		}
+
+		c.executionCtx.waitUntil(processProposal(config, request.data, sampled));
+
+		return c.body(null, 202);
+	} catch (e: unknown) {
+		const { response, code } = handleError(e);
+		return c.json(response, code);
+	}
+};
+
+const processProposal = async (config: Config, event: TransactionProposedEvent, _sampled: boolean) => {
+	try {
+		const details = await transactionDetails(event.chainId, event.safeTxHash);
 		if (details === null) {
-			return c.body(null, 201);
+			return;
 		}
 
 		const chain = extractChain({
@@ -47,10 +60,8 @@ export const handleProposal = async (c: Context, sampled = false) => {
 				},
 			],
 		});
-
-		return c.json({ transactionHash }, 200);
+		console.info(`Transaction submitted: ${transactionHash}`);
 	} catch (e) {
-		const { response, code } = handleError(e);
-		return c.json(response, code);
+		console.error(e);
 	}
 };

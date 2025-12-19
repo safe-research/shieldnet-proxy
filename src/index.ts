@@ -13,11 +13,11 @@ const app = new Hono<{ Bindings: Bindings }>();
 app.use("/*", cors());
 
 app.post("/propose", async (c) => {
-	return await handleProposal(c);
+	return handleProposal(c);
 });
 
 app.post("/sampled", async (c) => {
-	return await handleProposal(c, true);
+	return handleProposal(c, true);
 });
 
 export default app;

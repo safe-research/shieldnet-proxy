@@ -1,16 +1,11 @@
 import type { Hex } from "viem";
-import { checkedAddressSchema } from "../utils/schemas.js";
-import { safeTransactionSchema } from "./schemas.js";
+import { serviceSafeTransactionSchema } from "./schemas.js";
 import type { SafeTransactionWithDomain } from "./types.js";
 
 const SHORT_NAMES: Record<string, string> = {
 	"1": "eth",
 	"100": "gno",
 };
-
-const serviceSafeTransactionSchema = safeTransactionSchema.extend({
-	safe: checkedAddressSchema,
-});
 
 export const transactionDetails = async (
 	chainId: bigint,

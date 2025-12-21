@@ -25,3 +25,11 @@ export const transactionProposedEventSchema = safeEventSchema.extend({
 });
 
 export type TransactionProposedEvent = z.output<typeof transactionProposedEventSchema>;
+
+export const serviceSafeTransactionSchema = safeTransactionSchema.extend({
+	safe: checkedAddressSchema,
+});
+
+export const serviceSafeTransactionWithChainIdSchema = serviceSafeTransactionSchema.extend({
+	chainId: bigintStringSchema,
+});

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { handleProposal } from "./proposals/handler.js";
+import { handleProposal, handleTx } from "./proposals/handler.js";
 
 type Bindings = {
 	PRIVATE_KEY: string;
@@ -11,6 +11,10 @@ type Bindings = {
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.use("/*", cors());
+
+app.post("/tx", async (c) => {
+	return handleTx(c);
+});
 
 app.post("/propose", async (c) => {
 	return handleProposal(c);

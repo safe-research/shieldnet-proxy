@@ -6,8 +6,8 @@ import { configSchema } from "../config/schemas.js";
 import type { Config } from "../config/types.js";
 import {
 	serviceSafeTransactionWithChainIdSchema,
-	type TransactionProposedEvent,
-	transactionProposedEventSchema,
+	type TransactionExecutedEvent,
+	transactionExecutedEventSchema,
 } from "../safe/schemas.js";
 import { transactionDetails } from "../safe/service.js";
 import type { SafeTransactionWithDomain } from "../safe/types.js";
@@ -20,7 +20,7 @@ export const handleProposal = async (c: Context, sampled = false) => {
 			return c.body(null, 202);
 		}
 
-		const request = transactionProposedEventSchema.safeParse(await c.req.json());
+		const request = transactionExecutedEventSchema.safeParse(await c.req.json());
 		if (!request.success) {
 			return c.body(null, 202);
 		}
@@ -34,7 +34,7 @@ export const handleProposal = async (c: Context, sampled = false) => {
 	}
 };
 
-const processProposal = async (config: Config, event: TransactionProposedEvent) => {
+const processProposal = async (config: Config, event: TransactionExecutedEvent) => {
 	try {
 		const details = await transactionDetails(event.chainId, event.safeTxHash);
 		if (details === null) {

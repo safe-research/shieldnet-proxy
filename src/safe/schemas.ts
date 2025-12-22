@@ -19,12 +19,12 @@ export const safeEventSchema = z.object({
 	chainId: bigintStringSchema,
 });
 
-export const transactionProposedEventSchema = safeEventSchema.extend({
-	type: z.literal("PENDING_MULTISIG_TRANSACTION"),
+export const transactionExecutedEventSchema = safeEventSchema.extend({
+	type: z.literal("EXECUTED_MULTISIG_TRANSACTION"),
 	safeTxHash: hexDataSchema,
 });
 
-export type TransactionProposedEvent = z.output<typeof transactionProposedEventSchema>;
+export type TransactionExecutedEvent = z.output<typeof transactionExecutedEventSchema>;
 
 export const serviceSafeTransactionSchema = safeTransactionSchema.extend({
 	safe: checkedAddressSchema,

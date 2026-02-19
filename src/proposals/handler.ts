@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { createWalletClient, extractChain, http, parseAbi } from "viem";
+import { createWalletClient, extractChain, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
@@ -11,8 +11,8 @@ import {
 } from "../safe/schemas.js";
 import { transactionDetails } from "../safe/service.js";
 import type { SafeTransactionWithDomain } from "../safe/types.js";
-import { handleError } from "../utils/errors.js";
 import { CONSENSUS_FUNCTIONS } from "../utils/abis.js";
+import { handleError } from "../utils/errors.js";
 
 export const handleProposal = async (c: Context, sampled = false) => {
 	try {

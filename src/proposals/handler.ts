@@ -12,6 +12,7 @@ import {
 import { transactionDetails } from "../safe/service.js";
 import type { SafeTransactionWithDomain } from "../safe/types.js";
 import { handleError } from "../utils/errors.js";
+import { CONSENSUS_FUNCTIONS } from "../utils/abis.js";
 
 export const handleProposal = async (c: Context, sampled = false) => {
 	try {
@@ -81,13 +82,10 @@ const submitTransaction = async (config: Config, details: SafeTransactionWithDom
 
 	const transactionHash = await client.writeContract({
 		address: config.CONSENSUS_ADDRESS,
-		abi: parseAbi([
-			"function proposeTransaction((uint256 chainId, address account, address to, uint256 value, uint8 operation, bytes data, uint256 nonce) transaction) external",
-		]),
+		abi: CONSENSUS_FUNCTIONS,
 		functionName: "proposeTransaction",
 		args: [
 			{
-				account: details.safe,
 				...details,
 			},
 		],

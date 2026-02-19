@@ -38,8 +38,8 @@ npm run deploy
 You can test your service by triggering a request against it:
 
 ```sh
-curl https://your-url.sample/propose \
+curl http://localhost:8787/propose \
     -H "Accept: application/json" \
     -H "content-type: application/json" \
-    -d '{"type":"PENDING_MULTISIG_TRANSACTION","chainId":"1","address":"0x1280C3d641ad0517918e0E4C41F4AD25f6b39144","safeTxHash":"0x20e178f2ce590c235d30a6e99a78e799053f36bafe2d2022a642be03cb89058c"}'
+    -d '{"type":"EXECUTED_MULTISIG_TRANSACTION","chainId":"1","address":"0x1280C3d641ad0517918e0E4C41F4AD25f6b39144","safeTxHash":"0x20e178f2ce590c235d30a6e99a78e799053f36bafe2d2022a642be03cb89058c"}'
 ```

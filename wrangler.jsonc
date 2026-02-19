@@ -9,6 +9,7 @@
 	"vars": {
 		"CONSENSUS_ADDRESS": "0x49Db717Adec0D22235A73C3a9c2ea57AB0bC2353",
 		"CHAIN_ID": "11155111",
+		"SAMPLE_RATE": "50"
 	},
 	// "kv_namespaces": [
 	//   {

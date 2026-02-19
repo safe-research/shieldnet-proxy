@@ -11,5 +11,5 @@ export const configSchema = z.object({
 	RPC_URL: z.url(),
 	CONSENSUS_ADDRESS: checkedAddressSchema,
 	CHAIN_ID: supportedChainsSchema.default(11155111),
-	SAMPLE_RATE: z.number().default(10),
+	SAMPLE_RATE: z.coerce.number().default(10),
 });

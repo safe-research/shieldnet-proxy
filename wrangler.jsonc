@@ -7,9 +7,13 @@
 	//   "nodejs_compat"
 	// ],
 	"vars": {
-		// NETWORKS must be set as a Cloudflare secret (wrangler secret put NETWORKS).
-		// It is a JSON array of network configs, e.g.:
-		// [{"chainId":11155111,"rpcUrl":"https://...","consensusAddress":"0x...","privateKey":"0x..."}]
+		// NETWORKS: JSON array of public per-network config (chain ID + consensus address only).
+		// Per-network secrets are set separately via wrangler secret put:
+		//   NETWORK_0_RPC_URL, NETWORK_0_PRIVATE_KEY
+		//   NETWORK_1_RPC_URL, NETWORK_1_PRIVATE_KEY  (repeat for each network)
+		// Example value:
+		// [{"chainId":11155111,"consensusAddress":"0x..."},{"chainId":100,"consensusAddress":"0x..."}]
+		"NETWORKS": "[{\"chainId\":11155111,\"consensusAddress\":\"0x49Db717Adec0D22235A73C3a9c2ea57AB0bC2353\"}]",
 		"SAMPLE_RATE": "50"
 	},
 	// "kv_namespaces": [

@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { createWalletClient, extractChain, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
-import { configSchema } from "../config/schemas.js";
+import { configSchema, networkConfigSchema } from "../config/schemas.js";
 import type { Config, NetworkConfig } from "../config/types.js";
 import {
 	serviceSafeTransactionWithChainIdSchema,
@@ -13,6 +13,16 @@ import { transactionDetails } from "../safe/service.js";
 import type { SafeTransactionWithDomain } from "../safe/types.js";
 import { CONSENSUS_FUNCTIONS } from "../utils/abis.js";
 import { handleError } from "../utils/errors.js";
+
+// Merges public NETWORKS config with per-network secrets (NETWORK_i_RPC_URL, NETWORK_i_PRIVATE_KEY).
+const resolveNetworks = (config: Config, env: Record<string, unknown>): NetworkConfig[] =>
+	config.NETWORKS.map((network, i) =>
+		networkConfigSchema.parse({
+			...network,
+			rpcUrl: env[`NETWORK_${i}_RPC_URL`],
+			privateKey: env[`NETWORK_${i}_PRIVATE_KEY`],
+		}),
+	);
 
 export const handleProposal = async (c: Context, sampled = false) => {
 	try {
@@ -26,7 +36,8 @@ export const handleProposal = async (c: Context, sampled = false) => {
 			return c.body(null, 202);
 		}
 
-		c.executionCtx.waitUntil(processProposal(config, request.data));
+		const networks = resolveNetworks(config, c.env as Record<string, unknown>);
+		c.executionCtx.waitUntil(processProposal(networks, request.data));
 
 		return c.body(null, 202);
 	} catch (e: unknown) {
@@ -35,13 +46,13 @@ export const handleProposal = async (c: Context, sampled = false) => {
 	}
 };
 
-const processProposal = async (config: Config, event: TransactionExecutedEvent) => {
+const processProposal = async (networks: NetworkConfig[], event: TransactionExecutedEvent) => {
 	try {
 		const details = await transactionDetails(event.chainId, event.safeTxHash);
 		if (details === null) {
 			return;
 		}
-		await submitToAllNetworks(config, details);
+		await submitToAllNetworks(networks, details);
 	} catch (e) {
 		console.error(e);
 	}
@@ -59,7 +70,8 @@ export const handleTx = async (c: Context, sampled = false) => {
 			return c.body(null, 202);
 		}
 
-		await submitToAllNetworks(config, request.data);
+		const networks = resolveNetworks(config, c.env as Record<string, unknown>);
+		await submitToAllNetworks(networks, request.data);
 
 		return c.body(null, 202);
 	} catch (e: unknown) {
@@ -68,11 +80,11 @@ export const handleTx = async (c: Context, sampled = false) => {
 	}
 };
 
-const submitToAllNetworks = async (config: Config, details: SafeTransactionWithDomain) => {
-	const results = await Promise.allSettled(config.NETWORKS.map((network) => submitTransaction(network, details)));
+const submitToAllNetworks = async (networks: NetworkConfig[], details: SafeTransactionWithDomain) => {
+	const results = await Promise.allSettled(networks.map((network) => submitTransaction(network, details)));
 	for (const [i, result] of results.entries()) {
 		if (result.status === "rejected") {
-			console.error(`Failed to submit to chain ${config.NETWORKS[i]?.chainId}:`, result.reason);
+			console.error(`Failed to submit to chain ${networks[i]?.chainId}:`, result.reason);
 		}
 	}
 };

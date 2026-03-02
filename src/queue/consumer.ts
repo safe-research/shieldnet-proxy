@@ -1,4 +1,4 @@
-import { createWalletClient, extractChain, http, nonceManager } from "viem";
+import { createPublicClient, createWalletClient, extractChain, http, nonceManager } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
@@ -33,13 +33,22 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 		account,
 		transport: http(config.RPC_URL),
 	});
+	const publicClient = createPublicClient({
+		chain,
+		transport: http(config.RPC_URL),
+	});
+
+	// Fetch EIP-1559 fee data once for the entire batch to avoid N redundant RPC calls
+	const { maxFeePerGas, maxPriorityFeePerGas } = await publicClient.estimateFeesPerGas();
+	// Add 10% buffer to maxFeePerGas to guard against price movement during batch processing
+	const bufferedMaxFeePerGas = (maxFeePerGas * 110n) / 100n;
 
 	// Process messages in parallel with automatic nonce management
 	const results = await Promise.allSettled(
 		batch.messages.map(async (message: Message<QueueMessage>) => {
 			try {
 				const parsedMessage = queueMessageSchema.parse(message.body);
-				await submitTransaction(client, chain, account, config, parsedMessage.data);
+				await submitTransaction(client, chain, account, config, parsedMessage.data, bufferedMaxFeePerGas, maxPriorityFeePerGas);
 				// Acknowledge successful processing
 				message.ack();
 			} catch (error) {
@@ -63,6 +72,8 @@ async function submitTransaction(
 	account: ReturnType<typeof privateKeyToAccount>,
 	config: Config,
 	details: SafeTransactionWithDomain,
+	maxFeePerGas: bigint,
+	maxPriorityFeePerGas: bigint,
 ): Promise<void> {
 	const transactionHash = await client.writeContract({
 		chain,
@@ -75,6 +86,8 @@ async function submitTransaction(
 				...details,
 			},
 		],
+		maxFeePerGas,
+		maxPriorityFeePerGas,
 	});
 	console.info(`Transaction submitted: ${transactionHash}`);
 }

@@ -1,5 +1,5 @@
-import { type Chain, createWalletClient, extractChain, http } from "viem";
-import { type PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
+import { createWalletClient, extractChain, http, nonceManager } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
 import type { Config } from "../config/types.js";
@@ -24,14 +24,17 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 		chains: supportedChains,
 		id: config.CHAIN_ID,
 	});
-	const account = privateKeyToAccount(config.PRIVATE_KEY);
+	// Attach viem's built-in nonce manager to prevent nonce conflicts
+	const account = privateKeyToAccount(config.PRIVATE_KEY, {
+		nonceManager,
+	});
 	const client = createWalletClient({
 		chain,
 		account,
 		transport: http(config.RPC_URL),
 	});
 
-	// Process messages in parallel, but collect results
+	// Process messages in parallel with automatic nonce management
 	const results = await Promise.allSettled(
 		batch.messages.map(async (message: Message<QueueMessage>) => {
 			try {
@@ -56,8 +59,8 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 
 async function submitTransaction(
 	client: ReturnType<typeof createWalletClient>,
-	chain: Chain,
-	account: PrivateKeyAccount,
+	chain: ReturnType<typeof extractChain>,
+	account: ReturnType<typeof privateKeyToAccount>,
 	config: Config,
 	details: SafeTransactionWithDomain,
 ): Promise<void> {

@@ -41,3 +41,48 @@ src/
 │   └── schemas.ts         # Zod validation schemas
 └── index.ts               # Worker exports
 ```
+
+## Performance Optimizations (Latest)
+
+### 5. Eliminated Redundant Client Instantiation
+**Problem**: `chain`, `account`, and `client` objects were being created for every single transaction submission.
+
+**Solution**: 
+- Moved initialization to batch level (lines 22-36 in `consumer.ts`)
+- Objects are now created once per batch and reused for all transactions
+- Reduced object creation from O(N) to O(1) per batch
+
+**Impact**: For a batch of N transactions:
+- **Before**: Created 3N objects (chain, account, client for each transaction)
+- **After**: Created 3 objects total (chain, account, client)
+
+### 6. Implemented Proper Nonce Management
+**Problem**: Parallel transaction submission caused nonce conflicts, leading to transaction failures.
+
+**Solution**: Use viem's built-in `nonceManager` for automatic nonce management:
+1. Attach `nonceManager` to the account during creation
+2. The nonce manager automatically tracks and assigns sequential nonces
+3. Safe to submit transactions in parallel
+4. Nonce manager handles retries and edge cases internally
+
+**Benefits**:
+- ✅ **No Nonce Conflicts**: Viem's nonce manager automatically tracks and assigns unique nonces
+- ✅ **Performance**: Maintains parallel submission for maximum throughput
+- ✅ **Robustness**: Built-in handling of edge cases and race conditions
+- ✅ **Simplicity**: No manual nonce tracking required
+- ✅ **Battle-tested**: Using viem's production-ready implementation
+
+**Code Changes**:
+```typescript
+// Attach viem's built-in nonce manager to the account
+const account = privateKeyToAccount(config.PRIVATE_KEY, {
+  nonceManager,
+});
+
+// Parallel processing with automatic nonce management
+const results = await Promise.allSettled(
+  batch.messages.map(async (message) => {
+    await submitTransaction(...);  // Nonces handled automatically
+  })
+);
+```

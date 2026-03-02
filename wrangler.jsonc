@@ -7,14 +7,13 @@
 	//   "nodejs_compat"
 	// ],
 	"vars": {
-		// NETWORKS: JSON array of public per-network config (chain ID + consensus address only).
-		// Per-network secrets are set separately via wrangler secret put:
-		//   NETWORK_0_RPC_URL, NETWORK_0_PRIVATE_KEY
-		//   NETWORK_1_RPC_URL, NETWORK_1_PRIVATE_KEY  (repeat for each network)
-		// Example value:
-		// [{"chainId":11155111,"consensusAddress":"0x..."},{"chainId":100,"consensusAddress":"0x..."}]
-		"NETWORKS": "[{\"chainId\":11155111,\"consensusAddress\":\"0x49Db717Adec0D22235A73C3a9c2ea57AB0bC2353\"}]",
+		// NETWORKS: public config, keyed by chainId. Safe to commit.
+		// Example: {"11155111":{"consensusAddress":"0x..."},"100":{"consensusAddress":"0x..."}}
+		"NETWORKS": "{\"11155111\":{\"consensusAddress\":\"0x49Db717Adec0D22235A73C3a9c2ea57AB0bC2353\"}}",
 		"SAMPLE_RATE": "50"
+		// NETWORK_SECRETS: secret config, same keys as NETWORKS. Set via:
+		//   wrangler secret put NETWORK_SECRETS
+		// Value format: {"11155111":{"rpcUrl":"https://...","privateKey":"0x..."},"100":{...}}
 	},
 	// "kv_namespaces": [
 	//   {

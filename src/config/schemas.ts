@@ -6,32 +6,54 @@ export const supportedChainsSchema = z.coerce
 	.number()
 	.pipe(z.union(supportedChains.map((chain) => z.literal(chain.id))));
 
-// Public fields stored in wrangler.jsonc vars (no secrets).
+const parseJson = (label: string) => (s: string, ctx: z.RefinementCtx) => {
+	try {
+		return JSON.parse(s);
+	} catch {
+		ctx.addIssue({ code: "custom", message: `${label} must be valid JSON` });
+		return z.NEVER;
+	}
+};
+
+// Public per-network config stored in wrangler.jsonc vars, keyed by chainId.
 const publicNetworkConfigSchema = z.object({
-	chainId: supportedChainsSchema,
 	consensusAddress: checkedAddressSchema,
 });
 
-// Full per-network config after merging public fields with per-network secrets.
-export const networkConfigSchema = publicNetworkConfigSchema.extend({
+// Secret per-network config stored as a single Cloudflare secret, keyed by chainId.
+const privateNetworkConfigSchema = z.object({
 	rpcUrl: z.url(),
 	privateKey: hexDataSchema,
 });
 
-// NETWORKS env var: JSON array of public network configs.
+// Full per-network config after merging the two.
+export const networkConfigSchema = z.object({
+	chainId: supportedChainsSchema,
+	consensusAddress: checkedAddressSchema,
+	rpcUrl: z.url(),
+	privateKey: hexDataSchema,
+});
+
+// NETWORKS var: JSON object keyed by chainId string -> public config.
+// Example: {"11155111":{"consensusAddress":"0x..."},"100":{"consensusAddress":"0x..."}}
 const networksSchema = z
 	.string()
-	.transform((s, ctx) => {
-		try {
-			return JSON.parse(s);
-		} catch {
-			ctx.addIssue({ code: "custom", message: "NETWORKS must be a valid JSON array" });
-			return z.NEVER;
-		}
-	})
-	.pipe(z.array(publicNetworkConfigSchema).min(1));
+	.transform(parseJson("NETWORKS"))
+	.pipe(
+		z
+			.record(z.string(), publicNetworkConfigSchema)
+			.refine((r) => Object.keys(r).length > 0, "NETWORKS must not be empty"),
+	);
+
+// NETWORK_SECRETS secret: JSON object keyed by chainId string -> secret config.
+// Example: {"11155111":{"rpcUrl":"https://...","privateKey":"0x..."},"100":{...}}
+const networkSecretsSchema = z
+	.string()
+	.transform(parseJson("NETWORK_SECRETS"))
+	.pipe(z.record(z.string(), privateNetworkConfigSchema));
 
 export const configSchema = z.object({
 	NETWORKS: networksSchema,
+	NETWORK_SECRETS: networkSecretsSchema,
 	SAMPLE_RATE: z.coerce.number().default(10),
 });

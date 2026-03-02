@@ -4,6 +4,7 @@ import { handleProposal, handleTx } from "./proposals/handler.js";
 
 type Bindings = {
 	NETWORKS: string;
+	NETWORK_SECRETS: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();

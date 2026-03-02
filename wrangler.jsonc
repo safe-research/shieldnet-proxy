@@ -11,6 +11,21 @@
 		"CHAIN_ID": "11155111",
 		"SAMPLE_RATE": "50"
 	},
+	"queues": {
+		"producers": [
+			{
+				"queue": "shieldnet-proposals",
+				"binding": "PROPOSAL_QUEUE"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "shieldnet-proposals",
+				"max_batch_size": 10,
+				"max_batch_timeout": 5
+			}
+		]
+	},
 	// "kv_namespaces": [
 	//   {
 	//     "binding": "MY_KV_NAMESPACE",

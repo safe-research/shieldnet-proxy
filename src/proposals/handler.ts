@@ -4,6 +4,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
 import type { Config } from "../config/types.js";
+import type { ProposalQueueMessage, TransactionQueueMessage } from "../queue/types.js";
 import {
 	serviceSafeTransactionWithChainIdSchema,
 	type TransactionExecutedEvent,
@@ -14,7 +15,19 @@ import type { SafeTransactionWithDomain } from "../safe/types.js";
 import { CONSENSUS_FUNCTIONS } from "../utils/abis.js";
 import { handleError } from "../utils/errors.js";
 
-export const handleProposal = async (c: Context, sampled = false) => {
+export const handleProposal = async (
+	c: Context<{
+		Bindings: {
+			PROPOSAL_QUEUE: Queue;
+			PRIVATE_KEY: string;
+			RPC_URL: string;
+			CONSENSUS_ADDRESS: string;
+			CHAIN_ID?: string;
+			SAMPLE_RATE?: string;
+		};
+	}>,
+	sampled = false,
+) => {
 	try {
 		const config = configSchema.parse(c.env);
 		if (sampled && config.SAMPLE_RATE >= Math.random() * 100) {
@@ -26,7 +39,14 @@ export const handleProposal = async (c: Context, sampled = false) => {
 			return c.body(null, 202);
 		}
 
-		c.executionCtx.waitUntil(processProposal(config, request.data));
+		const message: ProposalQueueMessage = {
+			type: "PROPOSAL",
+			sampled,
+			timestamp: Date.now(),
+			data: request.data,
+		};
+
+		await c.env.PROPOSAL_QUEUE.send(message);
 
 		return c.body(null, 202);
 	} catch (e: unknown) {
@@ -35,19 +55,27 @@ export const handleProposal = async (c: Context, sampled = false) => {
 	}
 };
 
-const processProposal = async (config: Config, event: TransactionExecutedEvent) => {
-	try {
-		const details = await transactionDetails(event.chainId, event.safeTxHash);
-		if (details === null) {
-			return;
-		}
-		await submitTransaction(config, details);
-	} catch (e) {
-		console.error(e);
+export const processProposal = async (config: Config, event: TransactionExecutedEvent) => {
+	const details = await transactionDetails(event.chainId, event.safeTxHash);
+	if (details === null) {
+		throw new Error(`Transaction details not found for ${event.safeTxHash}`);
 	}
+	await submitTransaction(config, details);
 };
 
-export const handleTx = async (c: Context, sampled = false) => {
+export const handleTx = async (
+	c: Context<{
+		Bindings: {
+			PROPOSAL_QUEUE: Queue;
+			PRIVATE_KEY: string;
+			RPC_URL: string;
+			CONSENSUS_ADDRESS: string;
+			CHAIN_ID?: string;
+			SAMPLE_RATE?: string;
+		};
+	}>,
+	sampled = false,
+) => {
 	try {
 		const config = configSchema.parse(c.env);
 		if (sampled && config.SAMPLE_RATE >= Math.random() * 100) {
@@ -59,7 +87,14 @@ export const handleTx = async (c: Context, sampled = false) => {
 			return c.body(null, 202);
 		}
 
-		await submitTransaction(config, request.data);
+		const message: TransactionQueueMessage = {
+			type: "TRANSACTION",
+			sampled,
+			timestamp: Date.now(),
+			data: request.data,
+		};
+
+		await c.env.PROPOSAL_QUEUE.send(message);
 
 		return c.body(null, 202);
 	} catch (e: unknown) {
@@ -68,7 +103,7 @@ export const handleTx = async (c: Context, sampled = false) => {
 	}
 };
 
-const submitTransaction = async (config: Config, details: SafeTransactionWithDomain) => {
+export const submitTransaction = async (config: Config, details: SafeTransactionWithDomain) => {
 	const chain = extractChain({
 		chains: supportedChains,
 		id: config.CHAIN_ID,

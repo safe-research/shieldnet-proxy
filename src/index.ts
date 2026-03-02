@@ -3,9 +3,7 @@ import { cors } from "hono/cors";
 import { handleProposal, handleTx } from "./proposals/handler.js";
 
 type Bindings = {
-	PRIVATE_KEY: string;
-	RPC_URL: string;
-	CONSENSUS_ADDRESS: string;
+	NETWORKS: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();

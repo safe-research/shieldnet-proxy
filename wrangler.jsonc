@@ -7,8 +7,9 @@
 	//   "nodejs_compat"
 	// ],
 	"vars": {
-		"CONSENSUS_ADDRESS": "0x49Db717Adec0D22235A73C3a9c2ea57AB0bC2353",
-		"CHAIN_ID": "11155111",
+		// NETWORKS must be set as a Cloudflare secret (wrangler secret put NETWORKS).
+		// It is a JSON array of network configs, e.g.:
+		// [{"chainId":11155111,"rpcUrl":"https://...","consensusAddress":"0x...","privateKey":"0x..."}]
 		"SAMPLE_RATE": "50"
 	},
 	// "kv_namespaces": [

@@ -3,7 +3,7 @@ import { createWalletClient, extractChain, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
-import type { Config } from "../config/types.js";
+import type { Config, NetworkConfig } from "../config/types.js";
 import {
 	serviceSafeTransactionWithChainIdSchema,
 	type TransactionExecutedEvent,
@@ -41,7 +41,7 @@ const processProposal = async (config: Config, event: TransactionExecutedEvent) 
 		if (details === null) {
 			return;
 		}
-		await submitTransaction(config, details);
+		await submitToAllNetworks(config, details);
 	} catch (e) {
 		console.error(e);
 	}
@@ -59,7 +59,7 @@ export const handleTx = async (c: Context, sampled = false) => {
 			return c.body(null, 202);
 		}
 
-		await submitTransaction(config, request.data);
+		await submitToAllNetworks(config, request.data);
 
 		return c.body(null, 202);
 	} catch (e: unknown) {
@@ -68,20 +68,29 @@ export const handleTx = async (c: Context, sampled = false) => {
 	}
 };
 
-const submitTransaction = async (config: Config, details: SafeTransactionWithDomain) => {
+const submitToAllNetworks = async (config: Config, details: SafeTransactionWithDomain) => {
+	const results = await Promise.allSettled(config.NETWORKS.map((network) => submitTransaction(network, details)));
+	for (const [i, result] of results.entries()) {
+		if (result.status === "rejected") {
+			console.error(`Failed to submit to chain ${config.NETWORKS[i]?.chainId}:`, result.reason);
+		}
+	}
+};
+
+const submitTransaction = async (network: NetworkConfig, details: SafeTransactionWithDomain) => {
 	const chain = extractChain({
 		chains: supportedChains,
-		id: config.CHAIN_ID,
+		id: network.chainId,
 	});
-	const account = privateKeyToAccount(config.PRIVATE_KEY);
+	const account = privateKeyToAccount(network.privateKey);
 	const client = createWalletClient({
 		chain,
 		account,
-		transport: http(config.RPC_URL),
+		transport: http(network.rpcUrl),
 	});
 
 	const transactionHash = await client.writeContract({
-		address: config.CONSENSUS_ADDRESS,
+		address: network.consensusAddress,
 		abi: CONSENSUS_FUNCTIONS,
 		functionName: "proposeTransaction",
 		args: [
@@ -90,5 +99,5 @@ const submitTransaction = async (config: Config, details: SafeTransactionWithDom
 			},
 		],
 	});
-	console.info(`Transaction submitted: ${transactionHash}`);
+	console.info(`Transaction submitted to chain ${network.chainId}: ${transactionHash}`);
 };

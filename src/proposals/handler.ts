@@ -3,8 +3,8 @@ import { configSchema } from "../config/schemas.js";
 import type { TransactionQueueMessage } from "../queue/types.js";
 import {
 	serviceSafeTransactionWithChainIdSchema,
-	transactionExecutedEventSchema,
 	type TransactionExecutedEvent,
+	transactionExecutedEventSchema,
 } from "../safe/schemas.js";
 import { transactionDetails } from "../safe/service.js";
 import { handleError } from "../utils/errors.js";
@@ -34,9 +34,7 @@ export const handleProposal = async (
 		}
 
 		// Fetch transaction details synchronously
-		c.executionCtx.waitUntil(
-			processProposalAsync(c.env.PROPOSAL_QUEUE, request.data),
-		);
+		c.executionCtx.waitUntil(processProposalAsync(c.env.PROPOSAL_QUEUE, request.data));
 
 		return c.body(null, 202);
 	} catch (e: unknown) {
@@ -84,27 +82,26 @@ export const handleTx = async (
 	}
 };
 
-
 async function processProposalAsync(
-queue: Queue<TransactionQueueMessage>,
-event: TransactionExecutedEvent,
+	queue: Queue<TransactionQueueMessage>,
+	event: TransactionExecutedEvent,
 ): Promise<void> {
-try {
-const details = await transactionDetails(event.chainId, event.safeTxHash);
-if (details === null) {
-console.error(`Transaction details not found for ${event.safeTxHash}`);
-return;
-}
+	try {
+		const details = await transactionDetails(event.chainId, event.safeTxHash);
+		if (details === null) {
+			console.error(`Transaction details not found for ${event.safeTxHash}`);
+			return;
+		}
 
-// Queue the transaction
-const message: TransactionQueueMessage = {
-type: "TRANSACTION",
-timestamp: Date.now(),
-data: details,
-};
+		// Queue the transaction
+		const message: TransactionQueueMessage = {
+			type: "TRANSACTION",
+			timestamp: Date.now(),
+			data: details,
+		};
 
-await queue.send(message);
-} catch (error) {
-console.error("Error processing proposal:", error);
-}
+		await queue.send(message);
+	} catch (error) {
+		console.error("Error processing proposal:", error);
+	}
 }

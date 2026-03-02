@@ -1,5 +1,5 @@
-import { createWalletClient, extractChain, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { type Chain, createWalletClient, extractChain, http } from "viem";
+import { type PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
 import type { Config } from "../config/types.js";
@@ -19,12 +19,24 @@ interface QueueEnv {
 export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: QueueEnv): Promise<void> {
 	const config = configSchema.parse(env);
 
+	// Initialize chain, account, and client once for the entire batch
+	const chain = extractChain({
+		chains: supportedChains,
+		id: config.CHAIN_ID,
+	});
+	const account = privateKeyToAccount(config.PRIVATE_KEY);
+	const client = createWalletClient({
+		chain,
+		account,
+		transport: http(config.RPC_URL),
+	});
+
 	// Process messages in parallel, but collect results
 	const results = await Promise.allSettled(
 		batch.messages.map(async (message: Message<QueueMessage>) => {
 			try {
 				const parsedMessage = queueMessageSchema.parse(message.body);
-				await submitTransaction(config, parsedMessage.data);
+				await submitTransaction(client, chain, account, config, parsedMessage.data);
 				// Acknowledge successful processing
 				message.ack();
 			} catch (error) {
@@ -42,19 +54,16 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 	console.info(`Batch processed: ${successful} successful, ${failed} failed out of ${batch.messages.length} messages`);
 }
 
-async function submitTransaction(config: Config, details: SafeTransactionWithDomain): Promise<void> {
-	const chain = extractChain({
-		chains: supportedChains,
-		id: config.CHAIN_ID,
-	});
-	const account = privateKeyToAccount(config.PRIVATE_KEY);
-	const client = createWalletClient({
+async function submitTransaction(
+	client: ReturnType<typeof createWalletClient>,
+	chain: Chain,
+	account: PrivateKeyAccount,
+	config: Config,
+	details: SafeTransactionWithDomain,
+): Promise<void> {
+	const transactionHash = await client.writeContract({
 		chain,
 		account,
-		transport: http(config.RPC_URL),
-	});
-
-	const transactionHash = await client.writeContract({
 		address: config.CONSENSUS_ADDRESS,
 		abi: CONSENSUS_FUNCTIONS,
 		functionName: "proposeTransaction",

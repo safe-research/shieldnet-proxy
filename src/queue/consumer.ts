@@ -1,6 +1,10 @@
+import { createWalletClient, extractChain, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
 import type { Config } from "../config/types.js";
-import { processProposal, submitTransaction } from "../proposals/handler.js";
+import type { SafeTransactionWithDomain } from "../safe/types.js";
+import { CONSENSUS_FUNCTIONS } from "../utils/abis.js";
 import { queueMessageSchema } from "./schemas.js";
 import type { QueueMessage } from "./types.js";
 
@@ -20,7 +24,7 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 		batch.messages.map(async (message: Message<QueueMessage>) => {
 			try {
 				const parsedMessage = queueMessageSchema.parse(message.body);
-				await processMessage(config, parsedMessage);
+				await submitTransaction(config, parsedMessage.data);
 				// Acknowledge successful processing
 				message.ack();
 			} catch (error) {
@@ -38,18 +42,27 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 	console.info(`Batch processed: ${successful} successful, ${failed} failed out of ${batch.messages.length} messages`);
 }
 
-async function processMessage(config: Config, message: QueueMessage): Promise<void> {
-	switch (message.type) {
-		case "PROPOSAL":
-			await processProposal(config, message.data);
-			break;
-		case "TRANSACTION":
-			await submitTransaction(config, message.data);
-			break;
-		default: {
-			// This should never happen due to discriminated union
-			const _exhaustiveCheck: never = message;
-			throw new Error("Unknown message type");
-		}
-	}
+async function submitTransaction(config: Config, details: SafeTransactionWithDomain): Promise<void> {
+	const chain = extractChain({
+		chains: supportedChains,
+		id: config.CHAIN_ID,
+	});
+	const account = privateKeyToAccount(config.PRIVATE_KEY);
+	const client = createWalletClient({
+		chain,
+		account,
+		transport: http(config.RPC_URL),
+	});
+
+	const transactionHash = await client.writeContract({
+		address: config.CONSENSUS_ADDRESS,
+		abi: CONSENSUS_FUNCTIONS,
+		functionName: "proposeTransaction",
+		args: [
+			{
+				...details,
+			},
+		],
+	});
+	console.info(`Transaction submitted: ${transactionHash}`);
 }

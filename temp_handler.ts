@@ -84,27 +84,26 @@ export const handleTx = async (
 	}
 };
 
-
 async function processProposalAsync(
-queue: Queue<TransactionQueueMessage>,
-event: TransactionExecutedEvent,
+	queue: Queue<TransactionQueueMessage>,
+	event: TransactionExecutedEvent,
 ): Promise<void> {
-try {
-const details = await transactionDetails(event.chainId, event.safeTxHash);
-if (details === null) {
-console.error(`Transaction details not found for ${event.safeTxHash}`);
-return;
-}
+	try {
+		const details = await transactionDetails(event.chainId, event.safeTxHash);
+		if (details === null) {
+			console.error(`Transaction details not found for ${event.safeTxHash}`);
+			return;
+		}
 
-// Queue the transaction
-const message: TransactionQueueMessage = {
-type: "TRANSACTION",
-timestamp: Date.now(),
-data: details,
-};
+		// Queue the transaction
+		const message: TransactionQueueMessage = {
+			type: "TRANSACTION",
+			timestamp: Date.now(),
+			data: details,
+		};
 
-await queue.send(message);
-} catch (error) {
-console.error("Error processing proposal:", error);
-}
+		await queue.send(message);
+	} catch (error) {
+		console.error("Error processing proposal:", error);
+	}
 }

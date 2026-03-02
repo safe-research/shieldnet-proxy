@@ -4,7 +4,7 @@ This document describes the changes made to migrate the Shieldnet Proxy from syn
 
 ## Overview
 
-The implementation has been updated to use Cloudflare Queues for asynchronous message processing. This provides better scalability and reliability by decoupling HTTP request handling from transaction processing.
+The implementation has been updated to use Cloudflare Queues for asynchronous transaction processing. This provides better scalability and reliability by decoupling HTTP request handling from blockchain transaction submission.
 
 ## Key Changes
 
@@ -14,20 +14,26 @@ The implementation has been updated to use Cloudflare Queues for asynchronous me
   - Max batch size: 10 messages
   - Max batch timeout: 5 seconds
 
-### 2. New Queue Types and Schemas
-- Created `src/queue/types.ts` with message type definitions
+### 2. Queue Types and Schemas
+- Created `src/queue/types.ts` with transaction message type
 - Created `src/queue/schemas.ts` with Zod validation schemas
-- Supports two message types: `PROPOSAL` and `TRANSACTION`
+- Only queues transaction data (SafeTransactionWithDomain)
 
-### 3. Updated HTTP Handlers
-- `/propose`, `/tx`, and `/sampled` endpoints now send messages to the queue
-- Endpoints return immediately with 202 (Accepted) status
-- Sample rate logic is preserved
+### 3. Updated HTTP Handlers (`src/proposals/handler.ts`)
+- `/propose` endpoint:
+  - Fetches transaction details from Safe API using `c.executionCtx.waitUntil()`
+  - Queues the complete transaction data
+  - Returns 202 immediately
+- `/tx` endpoint:
+  - Directly queues the transaction data
+  - Returns 202 immediately
+- `/sampled` endpoint works the same with sample rate logic
+- Sample rate logic is preserved for all endpoints
 
-### 4. Queue Consumer Implementation
-- Created `src/queue/consumer.ts` with batch processing logic
+### 4. Queue Consumer Implementation (`src/queue/consumer.ts`)
+- Contains all transaction processing logic (submitTransaction)
 - Processes messages in parallel within each batch
-- Errors are logged but don't cause retries (as requested)
+- Errors are logged but don't cause retries
 - Provides batch processing summary in logs
 
 ### 5. Updated Worker Export
@@ -37,19 +43,29 @@ The implementation has been updated to use Cloudflare Queues for asynchronous me
 ## Architecture
 
 ```
-HTTP Request → Handler → Queue Message → Queue Consumer → Blockchain Transaction
+Proposal Request → Fetch Transaction Details → Queue Transaction → Submit to Blockchain
+Transaction Request → Queue Transaction → Submit to Blockchain
 ```
 
 ### Message Flow:
-1. HTTP endpoints receive requests
-2. Validate input and check sample rate
-3. Create typed queue messages
-4. Send to `PROPOSAL_QUEUE`
-5. Return 202 immediately
-6. Queue consumer processes batches every 5 seconds or 10 messages
-7. Each message is processed in parallel
-8. Successful transactions are logged
-9. Failed transactions are logged but not retried
+1. **For Proposals (`/propose`, `/sampled`):**
+   - Receive proposal event
+   - Check sample rate
+   - Fetch transaction details from Safe API (synchronously with waitUntil)
+   - Queue complete transaction data
+   - Return 202 immediately
+
+2. **For Transactions (`/tx`):**
+   - Receive transaction data
+   - Check sample rate
+   - Queue transaction data directly
+   - Return 202 immediately
+
+3. **Queue Processing:**
+   - Consumer processes batches every 5 seconds or 10 messages
+   - Each transaction is submitted to blockchain in parallel
+   - Successful submissions are logged
+   - Failed submissions are logged but not retried
 
 ## Testing
 
@@ -76,6 +92,15 @@ The queue will be automatically created if it doesn't exist.
 - Queue metrics are available in the Cloudflare dashboard
 - Application logs include batch processing summaries
 - Failed messages are logged with error details
+
+## Code Organization
+
+The implementation follows a clear separation of concerns:
+- **API Handlers** (`src/proposals/handler.ts`): Handle HTTP requests, validation, and queuing
+- **Queue Consumer** (`src/queue/consumer.ts`): Contains all blockchain interaction logic
+- **Queue Types** (`src/queue/types.ts`, `src/queue/schemas.ts`): Define message structure
+
+This separation makes it clear what runs in the HTTP context vs the queue context.
 
 ## Configuration
 

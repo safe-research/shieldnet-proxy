@@ -1,4 +1,4 @@
-import { type Hex, createPublicClient, createWalletClient, encodeFunctionData, extractChain, http, nonceManager } from "viem";
+import { type Hex, createPublicClient, createWalletClient, encodeFunctionData, extractChain, http, nonceManager, size } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
@@ -72,8 +72,7 @@ function encodeTransaction(details: SafeTransactionWithDomain): { data: Hex; gas
 		functionName: "proposeTransaction",
 		args: [details],
 	});
-	// Subtract '0x' prefix and divide by 2 to convert hex chars to bytes
-	const calldataBytes = (data.length - 2) / 2;
+	const calldataBytes = size(data);
 	// Base formula: 60,000 base + 25 gas/byte, with 20% safety buffer.
 	// 25 gas/byte = 16 (non-zero calldata, post-Berlin) + 8 (ExecutionSuccess event) + 1 (overhead)
 	const estimated = 60_000n + BigInt(calldataBytes) * 25n;

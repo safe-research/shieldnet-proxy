@@ -8,6 +8,7 @@ import {
 } from "../safe/schemas.js";
 import { transactionDetails } from "../safe/service.js";
 import { handleError } from "../utils/errors.js";
+import { json } from "zod";
 
 export const handleProposal = async (
 	c: Context<{
@@ -73,7 +74,7 @@ export const handleTx = async (
 			data: request.data,
 		};
 
-		await c.env.PROPOSAL_QUEUE.send(message);
+		await c.env.PROPOSAL_QUEUE.send(message, { contentType: "v8" });
 
 		return c.body(null, 202);
 	} catch (e: unknown) {
@@ -100,7 +101,7 @@ async function processProposalAsync(
 			data: details,
 		};
 
-		await queue.send(message);
+		await queue.send(message, { contentType: "v8" });
 	} catch (error) {
 		console.error("Error processing proposal:", error);
 	}

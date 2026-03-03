@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, encodeFunctionData, extractChain, http, nonceManager } from "viem";
+import { type Hex, createPublicClient, createWalletClient, encodeFunctionData, extractChain, http, nonceManager } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
@@ -66,7 +66,7 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 	console.info(`Batch processed: ${successful} successful, ${failed} failed out of ${batch.messages.length} messages`);
 }
 
-function encodeTransaction(details: SafeTransactionWithDomain): { data: `0x${string}`; gas: bigint } {
+function encodeTransaction(details: SafeTransactionWithDomain): { data: Hex; gas: bigint } {
 	const data = encodeFunctionData({
 		abi: CONSENSUS_FUNCTIONS,
 		functionName: "proposeTransaction",

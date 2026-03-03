@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, extractChain, http, nonceManager } from "viem";
+import { createPublicClient, createWalletClient, encodeFunctionData, extractChain, http, nonceManager } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
@@ -66,6 +66,19 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 	console.info(`Batch processed: ${successful} successful, ${failed} failed out of ${batch.messages.length} messages`);
 }
 
+function estimateGas(details: SafeTransactionWithDomain): bigint {
+	const data = encodeFunctionData({
+		abi: CONSENSUS_FUNCTIONS,
+		functionName: "proposeTransaction",
+		args: [details],
+	});
+	// Subtract '0x' prefix and divide by 2 to convert hex chars to bytes
+	const calldataBytes = (data.length - 2) / 2;
+	// Base formula: 60,000 base + 25 gas/byte, with 20% safety buffer
+	const estimated = 60_000n + BigInt(calldataBytes) * 25n;
+	return (estimated * 120n) / 100n;
+}
+
 async function submitTransaction(
 	client: ReturnType<typeof createWalletClient>,
 	chain: ReturnType<typeof extractChain>,
@@ -75,6 +88,7 @@ async function submitTransaction(
 	maxFeePerGas: bigint,
 	maxPriorityFeePerGas: bigint,
 ): Promise<void> {
+	const gas = estimateGas(details);
 	const transactionHash = await client.writeContract({
 		chain,
 		account,
@@ -86,6 +100,7 @@ async function submitTransaction(
 				...details,
 			},
 		],
+		gas,
 		maxFeePerGas,
 		maxPriorityFeePerGas,
 	});

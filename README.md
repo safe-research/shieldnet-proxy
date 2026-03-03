@@ -1,4 +1,4 @@
-## Shieldnet Proxy
+## Safenet Proxy
 
 ### Development setup
 

@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "shieldnet-proxy",
+	"name": "safenet-proxy",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-07-17",
 	// "compatibility_flags": [
@@ -14,13 +14,13 @@
 	"queues": {
 		"producers": [
 			{
-				"queue": "shieldnet-proposals",
+				"queue": "safenet-proposals",
 				"binding": "PROPOSAL_QUEUE"
 			}
 		],
 		"consumers": [
 			{
-				"queue": "shieldnet-proposals",
+				"queue": "safenet-proposals",
 				"max_batch_size": 10,
 				"max_batch_timeout": 5
 			}

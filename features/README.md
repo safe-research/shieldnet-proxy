@@ -1,6 +1,6 @@
 # Features & Proposals
 
-This directory contains feature proposals, optimization plans, and architectural enhancement documents for the shieldnet-proxy project.
+This directory contains feature proposals, optimization plans, and architectural enhancement documents for the safenet-proxy project.
 
 ---
 

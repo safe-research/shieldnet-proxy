@@ -1,5 +1,5 @@
 import type { Hex } from "viem";
-import { serviceSafeTransactionSchema } from "./schemas.js";
+import { safeTransactionWithAccount } from "./schemas.js";
 import type { SafeTransactionWithDomain } from "./types.js";
 
 const SHORT_NAMES: Record<string, string> = {
@@ -16,7 +16,7 @@ export const transactionDetails = async (
 	const response = await fetch(
 		`https://api.safe.global/tx-service/${shortName}/api/v2/multisig-transactions/${safeTxHash}/`,
 	);
-	const parsed = serviceSafeTransactionSchema.safeParse(await response.json());
+	const parsed = safeTransactionWithAccount.safeParse(await response.json());
 	if (!parsed.success) return null;
 	return {
 		chainId,

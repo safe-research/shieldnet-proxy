@@ -1,14 +1,13 @@
 import type { Context } from "hono";
 import { configSchema } from "../config/schemas.js";
-import type { TransactionQueueMessage } from "../queue/types.js";
+import type { QueueMessage } from "../queue/types.js";
 import {
-	serviceSafeTransactionWithChainIdSchema,
+	safeTransactionWithDomain,
 	type TransactionExecutedEvent,
 	transactionExecutedEventSchema,
 } from "../safe/schemas.js";
 import { transactionDetails } from "../safe/service.js";
 import { handleError } from "../utils/errors.js";
-import { json } from "zod";
 
 export const handleProposal = async (
 	c: Context<{
@@ -63,12 +62,12 @@ export const handleTx = async (
 			return c.body(null, 202);
 		}
 
-		const request = serviceSafeTransactionWithChainIdSchema.safeParse(await c.req.json());
+		const request = safeTransactionWithDomain.safeParse(await c.req.json());
 		if (!request.success) {
 			return c.body(null, 202);
 		}
 
-		const message: TransactionQueueMessage = {
+		const message: QueueMessage = {
 			type: "TRANSACTION",
 			timestamp: Date.now(),
 			data: request.data,
@@ -83,10 +82,7 @@ export const handleTx = async (
 	}
 };
 
-async function processProposalAsync(
-	queue: Queue<TransactionQueueMessage>,
-	event: TransactionExecutedEvent,
-): Promise<void> {
+async function processProposalAsync(queue: Queue<QueueMessage>, event: TransactionExecutedEvent): Promise<void> {
 	try {
 		const details = await transactionDetails(event.chainId, event.safeTxHash);
 		if (details === null) {
@@ -95,7 +91,7 @@ async function processProposalAsync(
 		}
 
 		// Queue the transaction
-		const message: TransactionQueueMessage = {
+		const message: QueueMessage = {
 			type: "TRANSACTION",
 			timestamp: Date.now(),
 			data: details,

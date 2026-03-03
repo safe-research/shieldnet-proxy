@@ -1,9 +1,4 @@
-import type { SafeTransactionWithDomain } from "../safe/types.js";
+import type z from "zod";
+import type { queueMessageSchema } from "./schemas.js";
 
-export interface TransactionQueueMessage {
-	type: "TRANSACTION";
-	timestamp: number;
-	data: SafeTransactionWithDomain;
-}
-
-export type QueueMessage = TransactionQueueMessage;
+export type QueueMessage = z.output<typeof queueMessageSchema>;

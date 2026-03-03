@@ -1,10 +1,8 @@
 import { z } from "zod";
-import { serviceSafeTransactionWithChainIdSchema } from "../safe/schemas.js";
+import { safeTransactionWithDomain } from "../safe/schemas.js";
 
-export const transactionQueueMessageSchema = z.object({
+export const queueMessageSchema = z.object({
 	type: z.literal("TRANSACTION"),
 	timestamp: z.number(),
-	data: serviceSafeTransactionWithChainIdSchema,
+	data: safeTransactionWithDomain,
 });
-
-export const queueMessageSchema = transactionQueueMessageSchema;

@@ -12,9 +12,8 @@
 		"jsx": "react-jsx",
 		"jsxImportSource": "hono/jsx",
 		"outDir": "./dist",
-		"rootDir": "./src",
-		"types": ["@types/node"] // Include both
+		"types": ["@types/node", "./worker-configuration.d.ts"]
 	},
-	"include": ["src/**/*.ts"],
+	"include": ["src/**/*.ts", "worker-configuration.d.ts"],
 	"exclude": ["node_modules"]
 }

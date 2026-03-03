@@ -26,10 +26,10 @@ export const transactionExecutedEventSchema = safeEventSchema.extend({
 
 export type TransactionExecutedEvent = z.output<typeof transactionExecutedEventSchema>;
 
-export const serviceSafeTransactionSchema = safeTransactionSchema.extend({
+export const safeTransactionWithAccount = safeTransactionSchema.extend({
 	safe: checkedAddressSchema,
 });
 
-export const serviceSafeTransactionWithChainIdSchema = serviceSafeTransactionSchema.extend({
+export const safeTransactionWithDomain = safeTransactionWithAccount.extend({
 	chainId: bigintStringSchema,
 });

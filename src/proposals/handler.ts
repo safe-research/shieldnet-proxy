@@ -1,20 +1,27 @@
 import type { Context } from "hono";
-import { createWalletClient, extractChain, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
-import type { Config } from "../config/types.js";
+import type { QueueMessage } from "../queue/types.js";
 import {
-	serviceSafeTransactionWithChainIdSchema,
+	safeTransactionWithDomain,
 	type TransactionExecutedEvent,
 	transactionExecutedEventSchema,
 } from "../safe/schemas.js";
 import { transactionDetails } from "../safe/service.js";
-import type { SafeTransactionWithDomain } from "../safe/types.js";
-import { CONSENSUS_FUNCTIONS } from "../utils/abis.js";
 import { handleError } from "../utils/errors.js";
 
-export const handleProposal = async (c: Context, sampled = false) => {
+export const handleProposal = async (
+	c: Context<{
+		Bindings: {
+			PROPOSAL_QUEUE: Queue;
+			PRIVATE_KEY: string;
+			RPC_URL: string;
+			CONSENSUS_ADDRESS: string;
+			CHAIN_ID?: string;
+			SAMPLE_RATE?: string;
+		};
+	}>,
+	sampled = false,
+) => {
 	try {
 		const config = configSchema.parse(c.env);
 		if (sampled && config.SAMPLE_RATE >= Math.random() * 100) {
@@ -26,7 +33,8 @@ export const handleProposal = async (c: Context, sampled = false) => {
 			return c.body(null, 202);
 		}
 
-		c.executionCtx.waitUntil(processProposal(config, request.data));
+		// Fetch transaction details synchronously
+		c.executionCtx.waitUntil(processProposalAsync(c.env.PROPOSAL_QUEUE, request.data));
 
 		return c.body(null, 202);
 	} catch (e: unknown) {
@@ -35,31 +43,37 @@ export const handleProposal = async (c: Context, sampled = false) => {
 	}
 };
 
-const processProposal = async (config: Config, event: TransactionExecutedEvent) => {
-	try {
-		const details = await transactionDetails(event.chainId, event.safeTxHash);
-		if (details === null) {
-			return;
-		}
-		await submitTransaction(config, details);
-	} catch (e) {
-		console.error(e);
-	}
-};
-
-export const handleTx = async (c: Context, sampled = false) => {
+export const handleTx = async (
+	c: Context<{
+		Bindings: {
+			PROPOSAL_QUEUE: Queue;
+			PRIVATE_KEY: string;
+			RPC_URL: string;
+			CONSENSUS_ADDRESS: string;
+			CHAIN_ID?: string;
+			SAMPLE_RATE?: string;
+		};
+	}>,
+	sampled = false,
+) => {
 	try {
 		const config = configSchema.parse(c.env);
 		if (sampled && config.SAMPLE_RATE >= Math.random() * 100) {
 			return c.body(null, 202);
 		}
 
-		const request = serviceSafeTransactionWithChainIdSchema.safeParse(await c.req.json());
+		const request = safeTransactionWithDomain.safeParse(await c.req.json());
 		if (!request.success) {
 			return c.body(null, 202);
 		}
 
-		await submitTransaction(config, request.data);
+		const message: QueueMessage = {
+			type: "TRANSACTION",
+			timestamp: Date.now(),
+			data: request.data,
+		};
+
+		await c.env.PROPOSAL_QUEUE.send(message, { contentType: "v8" });
 
 		return c.body(null, 202);
 	} catch (e: unknown) {
@@ -68,27 +82,23 @@ export const handleTx = async (c: Context, sampled = false) => {
 	}
 };
 
-const submitTransaction = async (config: Config, details: SafeTransactionWithDomain) => {
-	const chain = extractChain({
-		chains: supportedChains,
-		id: config.CHAIN_ID,
-	});
-	const account = privateKeyToAccount(config.PRIVATE_KEY);
-	const client = createWalletClient({
-		chain,
-		account,
-		transport: http(config.RPC_URL),
-	});
+async function processProposalAsync(queue: Queue<QueueMessage>, event: TransactionExecutedEvent): Promise<void> {
+	try {
+		const details = await transactionDetails(event.chainId, event.safeTxHash);
+		if (details === null) {
+			console.error(`Transaction details not found for ${event.safeTxHash}`);
+			return;
+		}
 
-	const transactionHash = await client.writeContract({
-		address: config.CONSENSUS_ADDRESS,
-		abi: CONSENSUS_FUNCTIONS,
-		functionName: "proposeTransaction",
-		args: [
-			{
-				...details,
-			},
-		],
-	});
-	console.info(`Transaction submitted: ${transactionHash}`);
-};
+		// Queue the transaction
+		const message: QueueMessage = {
+			type: "TRANSACTION",
+			timestamp: Date.now(),
+			data: details,
+		};
+
+		await queue.send(message, { contentType: "v8" });
+	} catch (error) {
+		console.error("Error processing proposal:", error);
+	}
+}

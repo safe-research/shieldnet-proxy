@@ -66,7 +66,7 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 	console.info(`Batch processed: ${successful} successful, ${failed} failed out of ${batch.messages.length} messages`);
 }
 
-function estimateGas(details: SafeTransactionWithDomain): bigint {
+function encodeTransaction(details: SafeTransactionWithDomain): { data: `0x${string}`; gas: bigint } {
 	const data = encodeFunctionData({
 		abi: CONSENSUS_FUNCTIONS,
 		functionName: "proposeTransaction",
@@ -76,7 +76,7 @@ function estimateGas(details: SafeTransactionWithDomain): bigint {
 	const calldataBytes = (data.length - 2) / 2;
 	// Base formula: 60,000 base + 25 gas/byte, with 20% safety buffer
 	const estimated = 60_000n + BigInt(calldataBytes) * 25n;
-	return (estimated * 120n) / 100n;
+	return { data, gas: (estimated * 120n) / 100n };
 }
 
 async function submitTransaction(
@@ -88,18 +88,12 @@ async function submitTransaction(
 	maxFeePerGas: bigint,
 	maxPriorityFeePerGas: bigint,
 ): Promise<void> {
-	const gas = estimateGas(details);
-	const transactionHash = await client.writeContract({
+	const { data, gas } = encodeTransaction(details);
+	const transactionHash = await client.sendTransaction({
 		chain,
 		account,
-		address: config.CONSENSUS_ADDRESS,
-		abi: CONSENSUS_FUNCTIONS,
-		functionName: "proposeTransaction",
-		args: [
-			{
-				...details,
-			},
-		],
+		to: config.CONSENSUS_ADDRESS,
+		data,
 		gas,
 		maxFeePerGas,
 		maxPriorityFeePerGas,

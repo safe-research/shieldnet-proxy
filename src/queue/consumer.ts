@@ -75,12 +75,7 @@ function encodeTransaction(details: SafeTransactionWithDomain): { data: Hex; gas
 	// Subtract '0x' prefix and divide by 2 to convert hex chars to bytes
 	const calldataBytes = (data.length - 2) / 2;
 	// Base formula: 60,000 base + 25 gas/byte, with 20% safety buffer.
-	// 25 gas/byte is a conservative blend of EVM calldata costs: zero bytes cost 4 gas (EIP-2028)
-	// and non-zero bytes cost 16 gas (post-Berlin). Real-world Safe calldata is ~30–40% zero bytes,
-	// yielding roughly (0.35 * 4) + (0.65 * 16) ≈ 11.8 gas/byte effective cost, but the remaining
-	// budget covers memory expansion, hashing inside execTransaction, and signature verification
-	// (~6,000 gas per signer). 25 gas/byte captures all of that overhead in a single scalar without
-	// requiring per-call profiling, and the 20% buffer on top handles variance.
+	// 25 gas/byte = 16 (non-zero calldata, post-Berlin) + 8 (ExecutionSuccess event) + 1 (overhead)
 	const estimated = 60_000n + BigInt(calldataBytes) * 25n;
 	return { data, gas: (estimated * 120n) / 100n };
 }

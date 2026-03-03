@@ -72,10 +72,9 @@ function encodeTransaction(details: SafeTransactionWithDomain): { data: Hex; gas
 		functionName: "proposeTransaction",
 		args: [details],
 	});
-	const calldataBytes = size(data);
 	// Base formula: 60,000 base + 25 gas/byte, with 20% safety buffer.
 	// 25 gas/byte = 16 (non-zero calldata, post-Berlin) + 8 (ExecutionSuccess event) + 1 (overhead)
-	const estimated = 60_000n + BigInt(calldataBytes) * 25n;
+	const estimated = 60_000n + BigInt(size(data)) * 25n;
 	return { data, gas: (estimated * 120n) / 100n };
 }
 

@@ -145,6 +145,36 @@ curl http://localhost:8787/propose \
 - Contract ABIs are defined in `src/utils/abis.ts`
 - Use Viem for reading and writing transactions
 
+## Git Branch Naming Convention
+
+Branch names must follow the pattern `<prefix>/<description>` where:
+
+- `<prefix>` is one of: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `claude`
+- `<description>` is kebab-case and meaningfully describes the specific change being made
+
+### Good examples
+
+```
+feat/add-frost-key-rotation
+fix/staking-withdrawal-overflow
+docs/update-validator-setup-guide
+refactor/simplify-consensus-state-machine
+chore/bump-viem-to-v3
+claude/add-claude-md-branch-rules
+```
+
+### Bad examples
+
+```
+dev
+wip
+my-branch
+feat/wip
+fix/stuff
+```
+
+Always use a name that makes the purpose of the branch immediately clear to anyone reading it.
+
 ## Troubleshooting
 
 **Build Fails:**

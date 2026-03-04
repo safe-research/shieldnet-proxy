@@ -102,5 +102,5 @@ async function submitTransaction(
 		maxPriorityFeePerGas,
 		nonce,
 	});
-	console.info(`Transaction submitted: ${transactionHash}`);
+	console.info(`Transaction submitted: ${transactionHash} (nonce: ${nonce})`);
 }

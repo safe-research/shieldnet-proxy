@@ -1,4 +1,4 @@
-import { type Hex, createPublicClient, createWalletClient, encodeFunctionData, extractChain, http, size } from "viem";
+import { BaseError, type Hex, createPublicClient, createWalletClient, encodeFunctionData, extractChain, http, size } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
@@ -55,7 +55,8 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 				message.ack();
 			} catch (error) {
 				// Log error but don't retry (as per requirements)
-				console.error(`Error processing message ${message.id}:`, error);
+				const message_ = error instanceof BaseError ? error.shortMessage : String(error);
+				console.error(`Error processing message ${message.id}: ${message_}`);
 				// Still acknowledge to prevent retry
 				message.ack();
 			}

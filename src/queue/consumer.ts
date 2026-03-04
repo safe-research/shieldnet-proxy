@@ -37,8 +37,8 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 
 	// Fetch EIP-1559 fee data once for the entire batch to avoid N redundant RPC calls
 	const { maxFeePerGas, maxPriorityFeePerGas } = await publicClient.estimateFeesPerGas();
-	// Add 10% buffer to maxFeePerGas to guard against price movement during batch processing
-	const bufferedMaxFeePerGas = (maxFeePerGas * 110n) / 100n;
+	// Double maxFeePerGas to guard against price movement during batch processing
+	const bufferedMaxFeePerGas = maxFeePerGas * 2n;
 
 	// Fetch the current nonce once and manually increment per transaction.
 	// Note: this could theoretically cause skipped transactions if a concurrent sender

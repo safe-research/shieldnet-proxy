@@ -55,8 +55,8 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 				message.ack();
 			} catch (error) {
 				// Log error but don't retry (as per requirements)
-				const message_ = error instanceof BaseError ? error.shortMessage : String(error);
-				console.error(`Error processing message ${message.id}: ${message_}`);
+				const errorMessage = error instanceof BaseError ? error.shortMessage : String(error);
+				console.error(`Error processing message ${message.id}: ${errorMessage}`);
 				// Still acknowledge to prevent retry
 				message.ack();
 			}

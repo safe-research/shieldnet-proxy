@@ -1,4 +1,4 @@
-import { type Hex, createPublicClient, createWalletClient, encodeFunctionData, extractChain, http, nonceManager, size } from "viem";
+import { type Hex, createPublicClient, createWalletClient, encodeFunctionData, extractChain, http, size } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
@@ -24,10 +24,7 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 		chains: supportedChains,
 		id: config.CHAIN_ID,
 	});
-	// Attach viem's built-in nonce manager to prevent nonce conflicts
-	const account = privateKeyToAccount(config.PRIVATE_KEY, {
-		nonceManager,
-	});
+	const account = privateKeyToAccount(config.PRIVATE_KEY);
 	const client = createWalletClient({
 		chain,
 		account,
@@ -43,12 +40,17 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 	// Add 10% buffer to maxFeePerGas to guard against price movement during batch processing
 	const bufferedMaxFeePerGas = (maxFeePerGas * 110n) / 100n;
 
-	// Process messages in parallel with automatic nonce management
+	// Fetch the current nonce once and manually increment per transaction.
+	// Note: this could theoretically cause skipped transactions if a concurrent sender
+	// submits between our getTransactionCount call and our sends, but it is less prone
+	// to getting stuck than viem's nonceManager since there is currently no retry logic.
+	const baseNonce = await publicClient.getTransactionCount({ address: account.address, blockTag: "latest" });
+
 	const results = await Promise.allSettled(
-		batch.messages.map(async (message: Message<QueueMessage>) => {
+		batch.messages.map(async (message: Message<QueueMessage>, index: number) => {
 			try {
 				const parsedMessage = queueMessageSchema.parse(message.body);
-				await submitTransaction(client, chain, account, config, parsedMessage.data, bufferedMaxFeePerGas, maxPriorityFeePerGas);
+				await submitTransaction(client, chain, account, config, parsedMessage.data, bufferedMaxFeePerGas, maxPriorityFeePerGas, baseNonce + index);
 				// Acknowledge successful processing
 				message.ack();
 			} catch (error) {
@@ -86,6 +88,7 @@ async function submitTransaction(
 	details: SafeTransactionWithDomain,
 	maxFeePerGas: bigint,
 	maxPriorityFeePerGas: bigint,
+	nonce: number,
 ): Promise<void> {
 	const { data, gas } = encodeTransaction(details);
 	const transactionHash = await client.sendTransaction({
@@ -96,6 +99,7 @@ async function submitTransaction(
 		gas,
 		maxFeePerGas,
 		maxPriorityFeePerGas,
+		nonce,
 	});
 	console.info(`Transaction submitted: ${transactionHash}`);
 }

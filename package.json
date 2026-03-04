@@ -1,5 +1,5 @@
 {
-	"name": "shieldnet-proxy",
+	"name": "safenet-proxy",
 	"type": "module",
 	"private": true,
 	"scripts": {

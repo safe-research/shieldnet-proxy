@@ -1,8 +1,8 @@
-# CLAUDE.md - Shieldnet Proxy Development Guide
+# CLAUDE.md - Safenet Proxy Development Guide
 
 ## Project Overview
 
-Shieldnet Proxy is a Cloudflare Workers-based service that handles blockchain transaction proposals and multisig interactions. It provides endpoints for proposing and managing Safe multisig transactions across multiple blockchain networks.
+Safenet Proxy is a Cloudflare Workers-based service that handles blockchain transaction proposals and multisig interactions. It provides endpoints for proposing and managing Safe multisig transactions across multiple blockchain networks.
 
 **Tech Stack:**
 - Cloudflare Workers (Wrangler)

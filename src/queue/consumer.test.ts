@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { zeroAddress } from "viem";
 import type { SafeTransactionWithDomain } from "../safe/types.js";
 import { handleQueueBatch } from "./consumer.js";
 import type { QueueMessage } from "./types.js";
@@ -17,29 +18,28 @@ vi.mock("viem", async (importOriginal) => {
 // ---- fixtures ---------------------------------------------------------------
 
 const VALID_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 const SEPOLIA_RPC = "https://sepolia.example.com";
 const SEPOLIA_ID = "11155111";
 
 const ENV = {
 	PRIVATE_KEY: VALID_PRIVATE_KEY,
 	RPC_URLS: JSON.stringify({ [SEPOLIA_ID]: SEPOLIA_RPC }),
-	CONSENSUS_ADDRESSES: JSON.stringify({ [SEPOLIA_ID]: ZERO_ADDRESS }),
+	CONSENSUS_ADDRESSES: JSON.stringify({ [SEPOLIA_ID]: zeroAddress }),
 	CHAIN_IDS: SEPOLIA_ID,
 };
 
 const SAFE_TX: SafeTransactionWithDomain = {
-	to: ZERO_ADDRESS,
+	to: zeroAddress,
 	value: 0n,
 	data: "0x",
 	operation: 0,
 	safeTxGas: 0n,
 	baseGas: 0n,
 	gasPrice: 0n,
-	gasToken: ZERO_ADDRESS,
-	refundReceiver: ZERO_ADDRESS,
+	gasToken: zeroAddress,
+	refundReceiver: zeroAddress,
 	nonce: 0n,
-	safe: ZERO_ADDRESS,
+	safe: zeroAddress,
 	chainId: 1n,
 };
 
@@ -156,7 +156,7 @@ describe("handleQueueBatch", () => {
 			PRIVATE_KEY: VALID_PRIVATE_KEY,
 			CHAIN_IDS: "11155111,100",
 			RPC_URLS: JSON.stringify({ "11155111": SEPOLIA_RPC, "100": "https://gnosis.example.com" }),
-			CONSENSUS_ADDRESSES: JSON.stringify({ "11155111": ZERO_ADDRESS, "100": ZERO_ADDRESS }),
+			CONSENSUS_ADDRESSES: JSON.stringify({ "11155111": zeroAddress, "100": zeroAddress }),
 		};
 
 		const messages = [makeMessage()];

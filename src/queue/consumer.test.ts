@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { zeroAddress } from "viem";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type { SafeTransactionWithDomain } from "../safe/types.js";
 import { handleQueueBatch } from "./consumer.js";
 import type { QueueMessage } from "./types.js";

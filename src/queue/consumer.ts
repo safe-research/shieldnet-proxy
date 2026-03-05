@@ -25,100 +25,90 @@ interface QueueEnv {
 	SAMPLE_RATE?: string;
 }
 
-interface ChainContext {
-	chainId: number;
-	chain: ReturnType<typeof extractChain>;
-	account: ReturnType<typeof privateKeyToAccount>;
-	walletClient: ReturnType<typeof createWalletClient>;
-	consensusAddress: Address;
-	bufferedMaxFeePerGas: bigint;
-	maxPriorityFeePerGas: bigint;
-	baseNonce: number;
-}
-
 export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: QueueEnv): Promise<void> {
 	const config = configSchema.parse(env);
 	const account = privateKeyToAccount(config.PRIVATE_KEY);
 
-	// Initialize per-chain clients and fetch fee/nonce data once per chain per batch
-	const chainContexts = await Promise.all(
-		config.CHAIN_IDS.map(async (chainId): Promise<ChainContext> => {
-			const chain = extractChain({ chains: supportedChains, id: chainId });
-			const rpcUrl = config.RPC_URLS[String(chainId)];
-			const walletClient = createWalletClient({ chain, account, transport: http(rpcUrl) });
-			const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+	// Parse all messages upfront; always ack everything at the end (no retry policy)
+	const transactions: SafeTransactionWithDomain[] = [];
+	for (const message of batch.messages) {
+		const parsed = queueMessageSchema.safeParse(message.body);
+		if (parsed.success) {
+			transactions.push(parsed.data.data);
+		} else {
+			console.error(`Failed to parse message ${message.id}: ${parsed.error.message}`);
+		}
+	}
 
-			// Fetch EIP-1559 fee data once per chain for the entire batch to avoid N redundant RPC calls
-			const { maxFeePerGas, maxPriorityFeePerGas } = await publicClient.estimateFeesPerGas();
-
-			// Fetch the current nonce once and manually increment per transaction.
-			// Note: this could theoretically cause skipped transactions if a concurrent sender
-			// submits between our getTransactionCount call and our sends, but it is less prone
-			// to getting stuck than viem's nonceManager since there is currently no retry logic.
-			const baseNonce = await publicClient.getTransactionCount({ address: account.address, blockTag: "latest" });
-
-			return {
+	// Submit all transactions to each chain in parallel; settle independently per chain
+	const chainResults = await Promise.allSettled(
+		config.CHAIN_IDS.map((chainId) =>
+			processChainMessages(
 				chainId,
-				chain,
+				config.RPC_URLS[String(chainId)],
+				config.CONSENSUS_ADDRESSES[String(chainId)],
 				account,
-				walletClient,
-				consensusAddress: config.CONSENSUS_ADDRESSES[String(chainId)],
-				// Double maxFeePerGas to guard against price movement during batch processing
-				bufferedMaxFeePerGas: maxFeePerGas * 2n,
-				maxPriorityFeePerGas,
-				baseNonce,
-			};
-		}),
+				transactions,
+			),
+		),
 	);
+
+	for (const [i, result] of chainResults.entries()) {
+		if (result.status === "rejected") {
+			const errorMessage = result.reason instanceof BaseError ? result.reason.shortMessage : String(result.reason);
+			console.error(`Chain ${config.CHAIN_IDS[i]} batch failed: ${errorMessage}`);
+		}
+	}
+
+	for (const message of batch.messages) {
+		message.ack();
+	}
+}
+
+async function processChainMessages(
+	chainId: (typeof supportedChains)[number]["id"],
+	rpcUrl: string,
+	consensusAddress: Address,
+	account: ReturnType<typeof privateKeyToAccount>,
+	transactions: SafeTransactionWithDomain[],
+): Promise<void> {
+	const chain = extractChain({ chains: supportedChains, id: chainId });
+	const walletClient = createWalletClient({ chain, account, transport: http(rpcUrl) });
+	const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+
+	// Fetch EIP-1559 fee data once for the entire batch to avoid N redundant RPC calls
+	const { maxFeePerGas, maxPriorityFeePerGas } = await publicClient.estimateFeesPerGas();
+	// Double maxFeePerGas to guard against price movement during batch processing
+	const bufferedMaxFeePerGas = maxFeePerGas * 2n;
+
+	// Fetch the current nonce once and manually increment per transaction.
+	// Note: this could theoretically cause skipped transactions if a concurrent sender
+	// submits between our getTransactionCount call and our sends, but it is less prone
+	// to getting stuck than viem's nonceManager since there is currently no retry logic.
+	const baseNonce = await publicClient.getTransactionCount({ address: account.address, blockTag: "latest" });
 
 	const results = await Promise.allSettled(
-		batch.messages.map(async (message: Message<QueueMessage>, index: number) => {
-			try {
-				const parsedMessage = queueMessageSchema.parse(message.body);
-
-				// Submit to all configured chains in parallel
-				const chainResults = await Promise.allSettled(
-					chainContexts.map((ctx) =>
-						submitTransaction(
-							ctx.walletClient,
-							ctx.chain,
-							ctx.account,
-							ctx.consensusAddress,
-							parsedMessage.data,
-							ctx.bufferedMaxFeePerGas,
-							ctx.maxPriorityFeePerGas,
-							ctx.baseNonce + index,
-							ctx.chainId,
-						),
-					),
-				);
-
-				for (const [i, result] of chainResults.entries()) {
-					if (result.status === "rejected") {
-						const errorMessage =
-							result.reason instanceof BaseError ? result.reason.shortMessage : String(result.reason);
-						console.error(
-							`Error submitting message ${message.id} to chain ${chainContexts[i].chainId}: ${errorMessage}`,
-						);
-					}
-				}
-
-				// Acknowledge after attempting all chains
-				message.ack();
-			} catch (error) {
-				// Log error but don't retry (as per requirements)
-				const errorMessage = error instanceof BaseError ? error.shortMessage : String(error);
-				console.error(`Error processing message ${message.id}: ${errorMessage}`);
-				// Still acknowledge to prevent retry
-				message.ack();
-			}
-		}),
+		transactions.map((tx, index) =>
+			submitTransaction(
+				walletClient,
+				chain,
+				account,
+				consensusAddress,
+				tx,
+				bufferedMaxFeePerGas,
+				maxPriorityFeePerGas,
+				baseNonce + index,
+				chainId,
+			),
+		),
 	);
 
-	// Log batch processing summary
-	const successful = results.filter((r) => r.status === "fulfilled").length;
-	const failed = results.filter((r) => r.status === "rejected").length;
-	console.info(`Batch processed: ${successful} successful, ${failed} failed out of ${batch.messages.length} messages`);
+	for (const [index, result] of results.entries()) {
+		if (result.status === "rejected") {
+			const errorMessage = result.reason instanceof BaseError ? result.reason.shortMessage : String(result.reason);
+			console.error(`Error submitting tx ${index} to chain ${chainId}: ${errorMessage}`);
+		}
+	}
 }
 
 function encodeTransaction(details: SafeTransactionWithDomain): { data: Hex; gas: bigint } {

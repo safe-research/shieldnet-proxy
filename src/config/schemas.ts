@@ -7,38 +7,17 @@ export const supportedChainsSchema = z.coerce
 	.pipe(z.union(supportedChains.map((chain) => z.literal(chain.id))));
 
 const jsonStringToRecord = <V extends z.ZodTypeAny>(valueSchema: V) =>
-	z
-		.string()
-		.transform((s, ctx) => {
-			try {
-				return JSON.parse(s) as unknown;
-			} catch {
-				ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid JSON string" });
-				return z.NEVER;
-			}
-		})
-		.pipe(z.record(z.string(), valueSchema));
+	z.preprocess((val) => (typeof val === "string" ? JSON.parse(val) : val), z.record(z.string(), valueSchema));
 
 export const configSchema = z
 	.object({
 		PRIVATE_KEY: hexDataSchema,
 		RPC_URLS: jsonStringToRecord(z.url()),
 		CONSENSUS_ADDRESSES: jsonStringToRecord(checkedAddressSchema),
-		CHAIN_IDS: z
-			.string()
-			.default("11155111")
-			.transform((s, ctx) => {
-				const results: Array<(typeof supportedChains)[number]["id"]> = [];
-				for (const raw of s.split(",")) {
-					const result = supportedChainsSchema.safeParse(raw.trim());
-					if (!result.success) {
-						ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unsupported chain ID: ${raw.trim()}` });
-						return z.NEVER;
-					}
-					results.push(result.data);
-				}
-				return results;
-			}),
+		CHAIN_IDS: z.preprocess((val) => {
+			const str = typeof val === "string" ? val : "11155111";
+			return str.split(",").map((s) => s.trim());
+		}, z.array(supportedChainsSchema)),
 		SAMPLE_RATE: z.coerce.number().default(10),
 	})
 	.superRefine((config, ctx) => {

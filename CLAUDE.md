@@ -95,11 +95,21 @@ curl http://localhost:8787/propose \
 
 ## Key Guidelines for Development
 
+### Planning
+- All tasks should always be planned first
+- Add planning information to the `features` folder and follow the [README](./features/README.md) in that folder
+
 ### Code Quality
 - Run `npm run check` before committing
 - Use `npm run fix` to auto-correct formatting issues
+- Readable code has priority. In doubt rather create a new method so that it is easier to understand.
 - All code must pass TypeScript strict mode checks
 - Use Zod for runtime validation of external inputs
+
+### Testing
+- All added code should be covered by automated tests
+- Use mocks to isolate the test to the relevant code
+- Don't oververify mocks, verify observable outcomes (i.e. return values and side effects).
 
 ### Type Safety
 - Leverage TypeScript's type system - avoid `any` types

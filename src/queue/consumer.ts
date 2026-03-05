@@ -1,8 +1,17 @@
-import { BaseError, type Hex, createPublicClient, createWalletClient, encodeFunctionData, extractChain, http, size } from "viem";
+import {
+	type Address,
+	BaseError,
+	createPublicClient,
+	createWalletClient,
+	encodeFunctionData,
+	extractChain,
+	type Hex,
+	http,
+	size,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { supportedChains } from "../config/chains.js";
 import { configSchema } from "../config/schemas.js";
-import type { Config } from "../config/types.js";
 import type { SafeTransactionWithDomain } from "../safe/types.js";
 import { CONSENSUS_FUNCTIONS } from "../utils/abis.js";
 import { queueMessageSchema } from "./schemas.js";
@@ -10,30 +19,62 @@ import type { QueueMessage } from "./types.js";
 
 interface QueueEnv {
 	PRIVATE_KEY: string;
-	RPC_URL: string;
-	CONSENSUS_ADDRESS: string;
-	CHAIN_ID?: string;
+	RPC_URLS: string;
+	CONSENSUS_ADDRESSES: string;
+	CHAIN_IDS?: string;
 	SAMPLE_RATE?: string;
 }
 
 export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: QueueEnv): Promise<void> {
 	const config = configSchema.parse(env);
-
-	// Initialize chain, account, and client once for the entire batch
-	const chain = extractChain({
-		chains: supportedChains,
-		id: config.CHAIN_ID,
-	});
 	const account = privateKeyToAccount(config.PRIVATE_KEY);
-	const client = createWalletClient({
-		chain,
-		account,
-		transport: http(config.RPC_URL),
-	});
-	const publicClient = createPublicClient({
-		chain,
-		transport: http(config.RPC_URL),
-	});
+
+	// Parse all messages upfront; always ack everything at the end (no retry policy)
+	const transactions: SafeTransactionWithDomain[] = [];
+	for (const message of batch.messages) {
+		const parsed = queueMessageSchema.safeParse(message.body);
+		if (parsed.success) {
+			transactions.push(parsed.data.data);
+		} else {
+			console.error(`Failed to parse message ${message.id}: ${parsed.error.message}`);
+		}
+	}
+
+	// Submit all transactions to each chain in parallel; settle independently per chain
+	const chainResults = await Promise.allSettled(
+		config.CHAIN_IDS.map((chainId) =>
+			processChainMessages(
+				chainId,
+				config.RPC_URLS[String(chainId)],
+				config.CONSENSUS_ADDRESSES[String(chainId)],
+				account,
+				transactions,
+			),
+		),
+	);
+
+	for (const [i, result] of chainResults.entries()) {
+		if (result.status === "rejected") {
+			const errorMessage = result.reason instanceof BaseError ? result.reason.shortMessage : String(result.reason);
+			console.error(`Chain ${config.CHAIN_IDS[i]} batch failed: ${errorMessage}`);
+		}
+	}
+
+	for (const message of batch.messages) {
+		message.ack();
+	}
+}
+
+async function processChainMessages(
+	chainId: (typeof supportedChains)[number]["id"],
+	rpcUrl: string,
+	consensusAddress: Address,
+	account: ReturnType<typeof privateKeyToAccount>,
+	transactions: SafeTransactionWithDomain[],
+): Promise<void> {
+	const chain = extractChain({ chains: supportedChains, id: chainId });
+	const walletClient = createWalletClient({ chain, account, transport: http(rpcUrl) });
+	const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
 
 	// Fetch EIP-1559 fee data once for the entire batch to avoid N redundant RPC calls
 	const { maxFeePerGas, maxPriorityFeePerGas } = await publicClient.estimateFeesPerGas();
@@ -47,26 +88,27 @@ export async function handleQueueBatch(batch: MessageBatch<QueueMessage>, env: Q
 	const baseNonce = await publicClient.getTransactionCount({ address: account.address, blockTag: "latest" });
 
 	const results = await Promise.allSettled(
-		batch.messages.map(async (message: Message<QueueMessage>, index: number) => {
-			try {
-				const parsedMessage = queueMessageSchema.parse(message.body);
-				await submitTransaction(client, chain, account, config, parsedMessage.data, bufferedMaxFeePerGas, maxPriorityFeePerGas, baseNonce + index);
-				// Acknowledge successful processing
-				message.ack();
-			} catch (error) {
-				// Log error but don't retry (as per requirements)
-				const errorMessage = error instanceof BaseError ? error.shortMessage : String(error);
-				console.error(`Error processing message ${message.id}: ${errorMessage}`);
-				// Still acknowledge to prevent retry
-				message.ack();
-			}
-		}),
+		transactions.map((tx, index) =>
+			submitTransaction(
+				walletClient,
+				chain,
+				account,
+				consensusAddress,
+				tx,
+				bufferedMaxFeePerGas,
+				maxPriorityFeePerGas,
+				baseNonce + index,
+				chainId,
+			),
+		),
 	);
 
-	// Log batch processing summary
-	const successful = results.filter((r) => r.status === "fulfilled").length;
-	const failed = results.filter((r) => r.status === "rejected").length;
-	console.info(`Batch processed: ${successful} successful, ${failed} failed out of ${batch.messages.length} messages`);
+	for (const [index, result] of results.entries()) {
+		if (result.status === "rejected") {
+			const errorMessage = result.reason instanceof BaseError ? result.reason.shortMessage : String(result.reason);
+			console.error(`Error submitting tx ${index} to chain ${chainId}: ${errorMessage}`);
+		}
+	}
 }
 
 function encodeTransaction(details: SafeTransactionWithDomain): { data: Hex; gas: bigint } {
@@ -85,22 +127,23 @@ async function submitTransaction(
 	client: ReturnType<typeof createWalletClient>,
 	chain: ReturnType<typeof extractChain>,
 	account: ReturnType<typeof privateKeyToAccount>,
-	config: Config,
+	consensusAddress: Address,
 	details: SafeTransactionWithDomain,
 	maxFeePerGas: bigint,
 	maxPriorityFeePerGas: bigint,
 	nonce: number,
+	chainId: number,
 ): Promise<void> {
 	const { data, gas } = encodeTransaction(details);
 	const transactionHash = await client.sendTransaction({
 		chain,
 		account,
-		to: config.CONSENSUS_ADDRESS,
+		to: consensusAddress,
 		data,
 		gas,
 		maxFeePerGas,
 		maxPriorityFeePerGas,
 		nonce,
 	});
-	console.info(`Transaction submitted: ${transactionHash} (nonce: ${nonce})`);
+	console.info(`Transaction submitted to chain ${chainId}: ${transactionHash} (nonce: ${nonce})`);
 }

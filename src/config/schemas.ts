@@ -6,10 +6,30 @@ export const supportedChainsSchema = z.coerce
 	.number()
 	.pipe(z.union(supportedChains.map((chain) => z.literal(chain.id))));
 
-export const configSchema = z.object({
-	PRIVATE_KEY: hexDataSchema,
-	RPC_URL: z.url(),
-	CONSENSUS_ADDRESS: checkedAddressSchema,
-	CHAIN_ID: supportedChainsSchema.default(11155111),
-	SAMPLE_RATE: z.coerce.number().default(10),
-});
+const jsonStringToRecord = <V extends z.ZodTypeAny>(valueSchema: V) =>
+	z.preprocess((val) => (typeof val === "string" ? JSON.parse(val) : val), z.record(z.string(), valueSchema));
+
+export const configSchema = z
+	.object({
+		PRIVATE_KEY: hexDataSchema,
+		RPC_URLS: jsonStringToRecord(z.url()),
+		CONSENSUS_ADDRESSES: jsonStringToRecord(checkedAddressSchema),
+		CHAIN_IDS: z.preprocess((val) => {
+			const str = typeof val === "string" ? val : "11155111";
+			return str.split(",").map((s) => s.trim());
+		}, z.array(supportedChainsSchema)),
+		SAMPLE_RATE: z.coerce.number().default(10),
+	})
+	.superRefine((config, ctx) => {
+		for (const id of config.CHAIN_IDS) {
+			if (config.RPC_URLS[String(id)] === undefined) {
+				ctx.addIssue({ code: z.ZodIssueCode.custom, message: `RPC_URLS missing entry for chain ${id}` });
+			}
+			if (config.CONSENSUS_ADDRESSES[String(id)] === undefined) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: `CONSENSUS_ADDRESSES missing entry for chain ${id}`,
+				});
+			}
+		}
+	});

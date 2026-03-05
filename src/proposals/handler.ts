@@ -14,9 +14,9 @@ export const handleProposal = async (
 		Bindings: {
 			PROPOSAL_QUEUE: Queue;
 			PRIVATE_KEY: string;
-			RPC_URL: string;
-			CONSENSUS_ADDRESS: string;
-			CHAIN_ID?: string;
+			RPC_URLS: string;
+			CONSENSUS_ADDRESSES: string;
+			CHAIN_IDS?: string;
 			SAMPLE_RATE?: string;
 		};
 	}>,
@@ -48,9 +48,9 @@ export const handleTx = async (
 		Bindings: {
 			PROPOSAL_QUEUE: Queue;
 			PRIVATE_KEY: string;
-			RPC_URL: string;
-			CONSENSUS_ADDRESS: string;
-			CHAIN_ID?: string;
+			RPC_URLS: string;
+			CONSENSUS_ADDRESSES: string;
+			CHAIN_IDS?: string;
 			SAMPLE_RATE?: string;
 		};
 	}>,

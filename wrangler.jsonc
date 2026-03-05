@@ -6,9 +6,14 @@
 	// "compatibility_flags": [
 	//   "nodejs_compat"
 	// ],
+	// Secrets (set via `wrangler secret put`):
+	//   PRIVATE_KEY  — hex-encoded private key used to sign transactions on all chains
+	//   RPC_URLS     — JSON string mapping chain ID to RPC URL, e.g. {"11155111":"https://...","100":"https://..."}
 	"vars": {
-		"CONSENSUS_ADDRESS": "0x49Db717Adec0D22235A73C3a9c2ea57AB0bC2353",
-		"CHAIN_ID": "11155111",
+		// JSON string mapping chain ID to consensus contract address, e.g. {"11155111":"0xAbc...","100":"0xDef..."}
+		"CONSENSUS_ADDRESSES": "{\"11155111\":\"0x49Db717Adec0D22235A73C3a9c2ea57AB0bC2353\"}",
+		// Comma-separated list of chain IDs to submit attestations to
+		"CHAIN_IDS": "11155111",
 		"SAMPLE_RATE": "50"
 	},
 	"queues": {

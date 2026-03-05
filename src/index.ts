@@ -6,10 +6,10 @@ import type { QueueMessage } from "./queue/types.js";
 
 interface Bindings {
 	PRIVATE_KEY: string;
-	RPC_URL: string;
-	CONSENSUS_ADDRESS: string;
+	RPC_URLS: string;
+	CONSENSUS_ADDRESSES: string;
 	PROPOSAL_QUEUE: Queue<QueueMessage>;
-	CHAIN_ID?: string;
+	CHAIN_IDS?: string;
 	SAMPLE_RATE?: string;
 }
 
